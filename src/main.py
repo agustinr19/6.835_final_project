@@ -10,13 +10,17 @@ sys.path.insert(0,"../lib")
 import Leap
 from Leap import SwipeGesture
 
-global POINTS, SWIPE, CYCLE, BEAT_NUM, TIME_SIG,BPM
+global POINTS, SWIPE, CYCLE 
 POINTS = Queue.Queue()
 SWIPE = False
 CYCLE = False
+
+global BEAT_NUM, TIME_SIG, BPM, STREAK, MAX_STREAK
 NEXT_BEAT_NUM = 1
 TIME_SIG = 4
 BPM = 0
+STREAK = 0
+MAX_STREAK = 0
 
 class LeapEventListener(Leap.Listener):
     global POINTS, SWIPE
@@ -27,8 +31,8 @@ class LeapEventListener(Leap.Listener):
     def on_init(self, controller):
         self.prev_position = None
         self.prev_velocity = None
-        self.prev_time = 0
         self.prev_beat_times = []
+        self.prev_bpm = 0
         print "Initialized"
 
     def on_connect(self, controller):
@@ -58,7 +62,7 @@ class LeapEventListener(Leap.Listener):
                 #velocity sign change in direction corresponding to current beat
                 if (vel[dim]/self.prev_velocity[dim]<=0): 
                     print(pos,vel)
-                    #distance threshold for beat recognition
+                    #check distance threshold for beat recognition
                     if (abs(pos[dim]-self.prev_position[dim])>50):
                         is_beat = True
                         NEXT_BEAT_NUM = (NEXT_BEAT_NUM + 1) % 4
@@ -71,14 +75,20 @@ class LeapEventListener(Leap.Listener):
                             temp = 0 #total beats/sec
                             for i in range(beat_refs-1):
                                 #(1 beat / x usec) * (10^6 us / 1 s) = 10^6/x beats/sec
-                                temp += 10^6/(time_refs[i]-time_refs[i+1])   
+                                temp += 10^6/(time_refs[i]-time_refs[i+1])  
+                            self.prev_bpm = BPM #update stored bpm for streak check
                             BPM = (temp*60)//(beat_refs-1)
 
-            
+                        #update streaks at the end of a measure
+                        if abs(BPM - self.prev_bpm) > 3:
+                            STREAK = 0
+                        if NEXT_BEAT_NUM == 1 and MAX_STREAK < STREAK:
+                            MAX_STREAK = STREAK
+
+                #update points queue for gui trail
                 POINTS.put(pos + [timestamp, is_beat])
                 self.prev_position = pos
                 self.prev_velocity = vel
-                self.prev_time = timestamp
 
         for gesture in frame.gestures():
             state = self.state_string(gesture.state)
@@ -150,19 +160,19 @@ class Multimodal_Metronome:
         self.quit_button.grid(row=0, column = 8,sticky=fill)
         self.quit_button['font']=subtitle_font
 
-        self.l_title = Label(frame,text="Metronome")
-        self.l_title['bg']='gray'
-        self.l1_subtitle = Label(frame,text="BPM",padx=60)
-        self.l2_subtitle = Label(frame,text="Time")
-        self.l1_display = Entry(frame,font=default_font,width=11)
-        self.l1_display.insert(0," ")
-        self.l2_display = Spinbox(frame,values=self.time_types,font=default_font,width=10)
+        self.m_title = Label(frame,text="Metronome")
+        self.m_title['bg']='gray'
+        self.m_bpm = Label(frame,text="BPM",padx=60)
+        self.m_time = Label(frame,text="Time")
+        self.m_bpm_display = Entry(frame,font=default_font,width=11)
+        self.m_bpm_display.insert(0," ")
+        self.m_time_display = Spinbox(frame,values=self.time_types,font=default_font,width=10)
 
-        self.l_title.grid(row=2,column=0,columnspan=2,sticky=fill)
-        self.l1_subtitle.grid(row=3,column=0,sticky=fill)
-        self.l2_subtitle.grid(row=4,column=0,sticky=fill)
-        self.l1_display.grid(row=3,column=1)
-        self.l2_display.grid(row=4,column=1)
+        self.m_title.grid(row=2,column=0,columnspan=2,sticky=fill)
+        self.m_bpm.grid(row=3,column=0,sticky=fill)
+        self.m_time.grid(row=4,column=0,sticky=fill)
+        self.m_bpm_display.grid(row=3,column=1)
+        self.m_time_display.grid(row=4,column=1)
 
         self.start = Button(frame,text="Start",command=self.start_met,bg='goldenrod')
         self.stop = Button(frame,text="Stop",command=self.stop_met,bg='goldenrod')
@@ -171,25 +181,35 @@ class Multimodal_Metronome:
         self.start['font']=subtitle_font
         self.stop['font']=subtitle_font
 
-        self.r_title = Label(frame,text="Conducting")
-        self.r_title['bg']='gray'
-        self.r1_subtitle = Label(frame,text="BPM")
-        self.r2_subtitle = Label(frame,text="Time")
-        self.r1_display = Label(frame,text="      ")
-        self.r2_display = Label(frame,text="      ")
+        self.c_title = Label(frame,text="Conducting")
+        self.c_title['bg']='gray'
+        self.c_bpm = Label(frame,text="BPM")
+        self.c_time = Label(frame,text="Time")
+        self.c_bpm_display = Label(frame,text="      ")
+        self.c_time_display = Label(frame,text="      ")
 
-        self.r_title.grid(row=6,column=0,columnspan=2,sticky=fill)
-        self.r1_subtitle.grid(row=7,column=0,sticky=fill)
-        self.r2_subtitle.grid(row=8,column=0,sticky=fill)
-        self.r1_display.grid(row=7,column=1)
-        self.r2_display.grid(row=8,column=1,)
+        self.c_title.grid(row=6,column=0,columnspan=2,sticky=fill)
+        self.c_bpm.grid(row=7,column=0,sticky=fill)
+        self.c_time.grid(row=8,column=0,sticky=fill)
+        self.c_bpm_display.grid(row=7,column=1)
+        self.c_time_display.grid(row=8,column=1,)
 
         self.start = Button(frame,text="Showtime!",command=self.toggle_challenge,bg='gold')
         self.start.grid(row=9,column=0,columnspan=2,sticky=fill)
 
         self.met_reference = Canvas(frame,width=700,height=700)
-        self.met_reference.grid(row=1,column=2,columnspan=7,rowspan=9,sticky=fill)
+        self.met_reference.grid(row=1,column=2,columnspan=7,rowspan=8,sticky=fill)
         self.update_time_sig()
+
+        self.high_score = Label(frame,text="Max Streak")
+        self.streak = Label(frame,text="Current Streak")
+        self.high_score_display = Label(frame,text="0")
+        self.streak_display = Label(frame,text="0")
+
+        self.high_score.grid(row=9,column=2,sticky=fill)
+        self.streak.grid(row=9,column=7,sticky=fill)
+        self.high_score_display.grid(row=9,column=3,sticky=fill)
+        self.streak_display.grid(row=9,column=8,sticky=fill)
 
     def quit(self):
         self.shutdown = True
@@ -209,7 +229,7 @@ class Multimodal_Metronome:
             return #metronome is already on
         else:
             self.metronome = True
-            self.l_title['bg'] = 'green' 
+            self.m_title['bg'] = 'green' 
             self.log = "Starting metronome"
 
     def stop_met(self):
@@ -217,7 +237,7 @@ class Multimodal_Metronome:
             return #metronome is already off
         self.metronome = False
         self.met_count = 0
-        self.l_title['bg'] = 'gray'
+        self.m_title['bg'] = 'gray'
         self.log = "Stopping metronome"
 
     def sound_handler(self):
@@ -242,17 +262,12 @@ class Multimodal_Metronome:
                 continue #play music
 
     def check_time_sig_select(self):
-        try:
-            return int(self.l2_display.get()[0])
-        except:
-            self.log = "Input a valid time signature"
-            return None
+        return int(self.m_time_display.get()[0])
 
     def check_tempo_select(self):
         try:
-            return float(self.l1_display.get())
+            return float(self.m_bpm_display.get())
         except:
-            self.log = "Input a valid BPM"
             return None
 
     def update_message(self):
@@ -285,49 +300,16 @@ class Multimodal_Metronome:
         self.update_times[self.cur_ind]=cur_time
         self.cur_ind = (self.cur_ind+1) % len(self.trail_pts)
 
+    def update_records(self):
+        self.high_score_display['text'] = MAX_STREAK
+        self.streak_display['text'] = STREAK
+
     def reset_conducting(self):
         self.conducting = False
-        self.r_title['bg']='gray'
-        self.r1_display['text']='      '
-        self.r2_display['text']='      '
+        self.c_title['bg']='gray'
+        self.c_bpm_display['text']='      '
+        self.c_time_display['text']='      '
         self.log = "No motion input detected"
-
-    def tracking(self,leap_data):
-        #leap_data = [x, y, z, timestamp, is_beat]
-        x,y,z,timestamp,is_beat = leap_data
-        if is_beat:
-            self.met_count
-        return 0
-
-# class Tutorial:
-#     global SWIPE
-#     def __init__(self,root):
-#         self.root = root
-#         self.pg_num = 1
-
-#         frame = Frame()
-#         frame.pack()
-#         self.page = Canvas(frame,width=1304,height=936)
-#         self.page.grid(row=0,column=0)
-#         self.pil_image = Image.open("../img/tutorial1.png")
-#         width,height = self.pil_image.size
-#         self.pil_image.resize((width,height),Image.ANTIALIAS)
-#         self.img = ImageTk.PhotoImage(self.pil_image,master=self.root)  
-#         self.page.create_image(width/2,height/2,image=self.img,anchor="center")
-
-#         self.next_page = Button()
-
-#     def turn_page(self):
-#         self.pg_num+=1
-#         if self.pg_num == 4:
-#             return True
-
-#         file = "../img/tutorial"+str(self.pg_num)+".png"
-#         self.pil_image = Image.open(file)
-#         width,height = self.pil_image.size
-#         self.pil_image.resize((width,height),Image.ANTIALIAS)
-#         self.img = ImageTk.PhotoImage(self.pil_image,master=self.root)  
-#         self.page.create_image(width/2,height/2,image=self.img,anchor="center")
 
 if __name__ == '__main__':
     root = Tk()
@@ -337,11 +319,6 @@ if __name__ == '__main__':
     listener = LeapEventListener()
     controller = Leap.Controller()
     controller.add_listener(listener)
-
-    # tutorial = Tutorial(root)
-    # while(tutorial.pg_num < 4):
-    #     root.update()
-    # tutorial.page.close()
 
     app = Multimodal_Metronome(root)
     prev_time_sig = 4
@@ -364,6 +341,7 @@ if __name__ == '__main__':
             TIME_SIG = time_sig_select
             prev_time_sig = TIME_SIG
             app.update_time_sig()
+
         tempo_select = app.check_tempo_select()
         if tempo_select and tempo_select != prev_tempo:
             app.set_met_tempo(tempo_select)
@@ -378,11 +356,11 @@ if __name__ == '__main__':
         while not POINTS.empty():
             empty_count = 0
             data = POINTS.get()
-            app.tracking(data)
-            cur_time = time.time()
-            if abs(cur_time - prev_trail_update) > 0.015:
+            cur_time = data[-1] #microseconds
+            if abs(cur_time - prev_trail_update) > (10^6/2): #.5 second interval
                 app.update_trail(data)
                 prev_trail_update = cur_time
+
         try:
             root.update()
         except:
