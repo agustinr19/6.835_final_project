@@ -16,12 +16,13 @@ POINTS = Queue.Queue()
 SWIPE = False
 CYCLE = False
 
-global NEXT_BEAT_NUM, TIME_SIG, BPM, STREAK, MAX_STREAK
+global NEXT_BEAT_NUM, TIME_SIG, BPM, STREAK, MAX_STREAK, PREV_BEAT_TIMES
 NEXT_BEAT_NUM = 1
 TIME_SIG = 4
 BPM = 0
 STREAK = 0
 MAX_STREAK = 0
+PREV_BEAT_TIMES = []
 
 class LeapEventListener(Leap.Listener):
     finger_names = ['Thumb', 'Index', 'Middle', 'Ring', 'Pinky']
@@ -31,7 +32,6 @@ class LeapEventListener(Leap.Listener):
     def on_init(self, controller):
         self.prev_position = None
         self.prev_velocity = None
-        self.prev_beat_times = []
         self.prev_bpm = 0
         print "Initialized"
 
@@ -47,7 +47,7 @@ class LeapEventListener(Leap.Listener):
         print "Exited"
 
     def on_frame(self, controller):
-        global POINTS, SWIPE, NEXT_BEAT_NUM, BPM, STREAK, MAX_STREAK
+        global POINTS, SWIPE, NEXT_BEAT_NUM, BPM, STREAK, MAX_STREAK, PREV_BEAT_TIMES
         frame = controller.frame()
         timestamp = frame.timestamp
         for hand in frame.hands:
@@ -73,12 +73,12 @@ class LeapEventListener(Leap.Listener):
                         print(NEXT_BEAT_NUM,BPM)
                         is_beat = True
                         NEXT_BEAT_NUM = (NEXT_BEAT_NUM + 1) % 4
-                        self.prev_beat_times.append(timestamp)
+                        PREV_BEAT_TIMES.append(timestamp)
 
                         #calculate bpm based on time signature and beat times
                         beat_refs = int(TIME_SIG*1.5)
-                        if len(self.prev_beat_times) > beat_refs:
-                            time_refs = self.prev_beat_times[-beat_refs:]
+                        if len(PREV_BEAT_TIMES) > beat_refs:
+                            time_refs = PREV_BEAT_TIMES[-beat_refs:]
                             temp = 0 #total beats/sec
                             for i in range(beat_refs-1):
                                 #(1 beat / x usec) * (10^6 us / 1 s) = 10^6/x beats/sec
@@ -333,6 +333,8 @@ class Multimodal_Metronome:
         self.streak_display['text'] = STREAK
 
     def reset_conducting(self):
+        global PREV_BEAT_TIMES
+        PREV_BEAT_TIMES = []
         self.conducting = False
         self.c_title['bg']='gray'
         self.c_bpm_display['text']=""
@@ -371,12 +373,12 @@ if __name__ == '__main__':
             engine.say(app.log)
 
         #encouragement :3
-        if STREAK >= 10:
-            engine.say("Great work!")
-        elif STREAK >= 20:
-            engine.say("Perfect!")
-        elif STREAK >= 30:
-            engine.say("You're on a roll!")
+        # if STREAK == 10:
+        #     engine.say("Great work!")
+        # elif STREAK == 20:
+        #     engine.say("Perfect!")
+        # elif STREAK == 30:
+        #     engine.say("You're on a roll!")
 
         # check for user inputs to gui
         time_sig_select = app.check_time_sig_select()
