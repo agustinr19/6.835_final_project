@@ -1,7 +1,8 @@
 from Tkinter import *
 from tkFont import Font, nametofont
 from PIL import ImageTk, Image
-from winsound import Beep
+from winsound import Beep, PlaySound, SND_ASYNC, SND_ALIAS
+import pyttsx
 import threading,time,math
 import Queue
 
@@ -15,7 +16,7 @@ POINTS = Queue.Queue()
 SWIPE = False
 CYCLE = False
 
-global BEAT_NUM, TIME_SIG, BPM, STREAK, MAX_STREAK
+global NEXT_BEAT_NUM, TIME_SIG, BPM, STREAK, MAX_STREAK
 NEXT_BEAT_NUM = 1
 TIME_SIG = 4
 BPM = 0
@@ -23,7 +24,6 @@ STREAK = 0
 MAX_STREAK = 0
 
 class LeapEventListener(Leap.Listener):
-    global POINTS, SWIPE
     finger_names = ['Thumb', 'Index', 'Middle', 'Ring', 'Pinky']
     bone_names = ['Metacarpal', 'Proximal', 'Intermediate', 'Distal']
     state_names = ['STATE_INVALID', 'STATE_START', 'STATE_UPDATE', 'STATE_END']
@@ -47,6 +47,7 @@ class LeapEventListener(Leap.Listener):
         print "Exited"
 
     def on_frame(self, controller):
+        global POINTS, SWIPE, NEXT_BEAT_NUM, BPM, STREAK, MAX_STREAK
         frame = controller.frame()
         timestamp = frame.timestamp
         for hand in frame.hands:
@@ -55,40 +56,52 @@ class LeapEventListener(Leap.Listener):
                 vel = hand.palm_velocity
                 is_beat = False
 
+                if self.prev_velocity is None:
+                    self.prev_velocity = vel
+                    self.prev_position = pos
+                    return
+
                 dim = 0 #x - horizontal motion
                 if (NEXT_BEAT_NUM%TIME_SIG==1 or NEXT_BEAT_NUM%TIME_SIG==0):
                     dim = 1 #y - first and last beats are vertical motions
 
                 #velocity sign change in direction corresponding to current beat
                 if (vel[dim]/self.prev_velocity[dim]<=0): 
-                    print(pos,vel)
+                    # print(pos.to_float_array(),vel.to_float_array())
                     #check distance threshold for beat recognition
-                    if (abs(pos[dim]-self.prev_position[dim])>50):
+                    if (abs(pos[dim]-self.prev_position[dim])>100):
+                        print(NEXT_BEAT_NUM,BPM)
                         is_beat = True
                         NEXT_BEAT_NUM = (NEXT_BEAT_NUM + 1) % 4
                         self.prev_beat_times.append(timestamp)
 
                         #calculate bpm based on time signature and beat times
-                        beat_refs = 4
+                        beat_refs = int(TIME_SIG*1.5)
                         if len(self.prev_beat_times) > beat_refs:
                             time_refs = self.prev_beat_times[-beat_refs:]
                             temp = 0 #total beats/sec
                             for i in range(beat_refs-1):
                                 #(1 beat / x usec) * (10^6 us / 1 s) = 10^6/x beats/sec
-                                temp += 10^6/(time_refs[i]-time_refs[i+1])  
+                                us_skip = float(time_refs[i+1]-time_refs[i])
+                                sec_skip = us_skip / 1000000
+                                temp += 60/sec_skip  
                             self.prev_bpm = BPM #update stored bpm for streak check
-                            BPM = (temp*60)//(beat_refs-1)
+                            BPM = int(temp/(beat_refs-1))
 
                         #update streaks at the end of a measure
-                        if abs(BPM - self.prev_bpm) > 3:
+                        if BPM == 0 or abs(BPM - self.prev_bpm) > 5:
                             STREAK = 0
-                        if NEXT_BEAT_NUM == 1 and MAX_STREAK < STREAK:
+                        else:
+                            STREAK += 1
+
+                        if MAX_STREAK < STREAK:
                             MAX_STREAK = STREAK
 
+                        self.prev_position = pos
+                        self.prev_velocity = vel
+
                 #update points queue for gui trail
-                POINTS.put(pos + [timestamp, is_beat])
-                self.prev_position = pos
-                self.prev_velocity = vel
+                POINTS.put(pos.to_float_array() + [timestamp, is_beat])
 
         for gesture in frame.gestures():
             state = self.state_string(gesture.state)
@@ -135,6 +148,7 @@ class Multimodal_Metronome:
         self.tutorial = False
         self.shutdown = False
         self.showtime = False
+        self.midsong = False
 
         self.log = ""
 
@@ -153,6 +167,7 @@ class Multimodal_Metronome:
         self.app_title = Label(frame,text="Multimodal Metronome",bg='pale goldenrod')
         self.app_title.grid(row=0,column=0,columnspan=2,rowspan=2,sticky=fill)
 
+        self.log = "Welcome, friend!"
         self.message = Label(frame, text="Welcome, friend!",)
         self.message.grid(row=0,column=2,columnspan=6,sticky=fill)
 
@@ -258,8 +273,17 @@ class Multimodal_Metronome:
                 else:
                     self.met_count += 1
                 time.sleep(delay - s_beep_dur)
-            if self.showtime:
-                continue #play music
+            if not self.midsong and self.showtime:
+                self.log = "Playing 'Life Will Change' at 132 BPM"
+                PlaySound("../music/Life Will Change_132.wav", SND_ASYNC | SND_ALIAS)
+                self.midsong = True
+            elif self.midsong and not self.showtime:
+                self.log = "Stopping playback"
+                PlaySound(None, SND_ASYNC)
+                self.midsong = False
+            else:
+                continue
+
 
     def check_time_sig_select(self):
         return int(self.m_time_display.get()[0])
@@ -301,15 +325,19 @@ class Multimodal_Metronome:
         self.cur_ind = (self.cur_ind+1) % len(self.trail_pts)
 
     def update_records(self):
+        self.conducting = True
+        self.c_title['bg']='green'
+        self.c_bpm_display['text'] = BPM
+        self.c_time_display['text'] = str(self.check_time_sig_select())+"/4"
         self.high_score_display['text'] = MAX_STREAK
         self.streak_display['text'] = STREAK
 
     def reset_conducting(self):
         self.conducting = False
         self.c_title['bg']='gray'
-        self.c_bpm_display['text']='      '
-        self.c_time_display['text']='      '
-        self.log = "No motion input detected"
+        self.c_bpm_display['text']=""
+        self.c_time_display['text']=""
+        # self.log = "No motion input detected"
 
 if __name__ == '__main__':
     root = Tk()
@@ -319,6 +347,11 @@ if __name__ == '__main__':
     listener = LeapEventListener()
     controller = Leap.Controller()
     controller.add_listener(listener)
+
+    engine = pyttsx.init()
+    voices = engine.getProperty('voices')
+    engine.setProperty('voice',voices[1].id)
+    engine.setProperty('volume', 1)
 
     app = Multimodal_Metronome(root)
     prev_time_sig = 4
@@ -334,6 +367,16 @@ if __name__ == '__main__':
         #check for announcements
         if app.log != prev_message:
             app.update_message()
+            prev_message = app.log
+            engine.say(app.log)
+
+        #encouragement :3
+        if STREAK >= 10:
+            engine.say("Great work!")
+        elif STREAK >= 20:
+            engine.say("Perfect!")
+        elif STREAK >= 30:
+            engine.say("You're on a roll!")
 
         # check for user inputs to gui
         time_sig_select = app.check_time_sig_select()
@@ -348,21 +391,23 @@ if __name__ == '__main__':
 
         # if no motion inputs, stop conducting functions
         if POINTS.empty():
-            if app.conducting and empty_count > 1500:
+            # print(empty_count)
+            if app.conducting and empty_count > 5:
                 app.reset_conducting()
             empty_count +=1
-
-        # if new motion info, update visuals
-        while not POINTS.empty():
-            empty_count = 0
-            data = POINTS.get()
-            cur_time = data[-1] #microseconds
-            if abs(cur_time - prev_trail_update) > (10^6/2): #.5 second interval
+        else:
+            # if new motion info, update visuals
+            while not POINTS.empty():
+                empty_count = 0
+                data = POINTS.get()
+                cur_time = data[-1] #microseconds
                 app.update_trail(data)
+                app.update_records()
                 prev_trail_update = cur_time
 
         try:
             root.update()
+            engine.runAndWait()
         except:
             break
 
