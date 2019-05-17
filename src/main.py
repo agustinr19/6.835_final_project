@@ -78,23 +78,26 @@ class LeapEventListener(Leap.Listener):
                         PREV_BEAT_TIMES.append(timestamp)
 
                         #calculate bpm based on time signature and beat times
-                        beat_refs = int(TIME_SIG*1.5)
+                        beat_refs = int(TIME_SIG*2)
                         if len(PREV_BEAT_TIMES) > beat_refs:
                             time_refs = PREV_BEAT_TIMES[-beat_refs:]
                             temp = 0 #total beats/sec
+                            divide = 0
                             for i in range(beat_refs-1):
                                 #(1 beat / x usec) * (10^6 us / 1 s) = 10^6/x beats/sec
                                 us_skip = float(time_refs[i+1]-time_refs[i])
                                 sec_skip = us_skip / 1000000
-                                temp += 60/sec_skip  
+                                weight = 1
+                                temp += weight * 60/sec_skip
+                                divide += weight  
                             self.prev_bpm = BPM #update stored bpm for streak check
                             offset = 0
                             if TIME_SIG == 3:
-                                offset = 30
-                            BPM = int(temp/(beat_refs-1))+offset
+                                offset = 25
+                            BPM = int(temp/divide)+offset
 
                         #update streaks at the end of a measure
-                        if BPM == 0 or abs(BPM - self.prev_bpm) > 5:
+                        if BPM == 0 or abs(BPM - self.prev_bpm) > TIME_SIG*2:
                             STREAK = 0
                         else:
                             STREAK += 1
@@ -346,12 +349,14 @@ class Multimodal_Metronome:
         self.streak_display['text'] = STREAK
 
     def reset_conducting(self):
-        global PREV_BEAT_TIMES
+        global PREV_BEAT_TIMES, BPM
         PREV_BEAT_TIMES = []
+        BPM = 0
         self.conducting = False
         self.c_title['bg']='gray'
         self.c_bpm_display['text']=""
         self.c_time_display['text']=""
+        BPM
         # self.log = "No motion input detected"
 
 if __name__ == '__main__':
