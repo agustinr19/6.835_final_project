@@ -4,6 +4,7 @@ Multimodal Metronome and Conducting Tutor
 
 NOTE: In order to use the application, run the ‘main.py’ file from inside the ‘src’ folder 
 
+
 OS: Windows, Language: Python2
 
 Hardware: Leap Motion Controller
@@ -27,5 +28,5 @@ pypiwin32|         | Python extension for Windows.
          |         | Necessary to use winsound.
          |         | pip install pypiwin32 
 --------------------------------------------------
-Tkinter		Constructs GUI. Preinstalled with Python 2
-	1.5.2	
+Tkinter  |         | Constructs GUI. 
+         |         | Preinstalled with Python 2	
