@@ -2,9 +2,10 @@ from Tkinter import *
 from tkFont import Font, nametofont
 from PIL import ImageTk, Image
 from winsound import Beep, PlaySound, SND_ASYNC, SND_ALIAS
-import pyttsx
+import pyttsx, os
 import threading,time,math
 import Queue
+from random import randint
 
 import sys
 sys.path.insert(0,"../lib")
@@ -16,13 +17,14 @@ POINTS = Queue.Queue()
 SWIPE = False
 CYCLE = False
 
-global NEXT_BEAT_NUM, TIME_SIG, BPM, STREAK, MAX_STREAK, PREV_BEAT_TIMES
+global NEXT_BEAT_NUM, TIME_SIG, BPM, STREAK, MAX_STREAK, PREV_BEAT_TIMES, TEST_DATA
 NEXT_BEAT_NUM = 1
 TIME_SIG = 4
 BPM = 0
 STREAK = 0
 MAX_STREAK = 0
 PREV_BEAT_TIMES = []
+TEST_DATA = []
 
 class LeapEventListener(Leap.Listener):
     finger_names = ['Thumb', 'Index', 'Middle', 'Ring', 'Pinky']
@@ -47,7 +49,7 @@ class LeapEventListener(Leap.Listener):
         print "Exited"
 
     def on_frame(self, controller):
-        global POINTS, SWIPE, NEXT_BEAT_NUM, BPM, STREAK, MAX_STREAK, PREV_BEAT_TIMES
+        global POINTS, SWIPE, NEXT_BEAT_NUM, BPM, STREAK, MAX_STREAK, PREV_BEAT_TIMES, TEST_DATA
         frame = controller.frame()
         timestamp = frame.timestamp
         for hand in frame.hands:
@@ -70,7 +72,7 @@ class LeapEventListener(Leap.Listener):
                     # print(pos.to_float_array(),vel.to_float_array())
                     #check distance threshold for beat recognition
                     if (abs(pos[dim]-self.prev_position[dim])>100):
-                        print(NEXT_BEAT_NUM,BPM)
+                        # print(NEXT_BEAT_NUM,BPM)
                         is_beat = True
                         NEXT_BEAT_NUM = (NEXT_BEAT_NUM + 1) % 4
                         PREV_BEAT_TIMES.append(timestamp)
@@ -99,9 +101,12 @@ class LeapEventListener(Leap.Listener):
 
                         self.prev_position = pos
                         self.prev_velocity = vel
+                        # print("beat",timestamp/100000)
 
                 #update points queue for gui trail
                 POINTS.put(pos.to_float_array() + [timestamp, is_beat])
+                # print(float(timestamp),float(timestamp)/1000000)
+                TEST_DATA.append(pos.to_float_array() + vel.to_float_array() + [float(timestamp)/1000000])
 
         for gesture in frame.gestures():
             state = self.state_string(gesture.state)
@@ -263,7 +268,7 @@ class Multimodal_Metronome:
                 # print(delay,s_beep_dur)
                 ms_beep_dur = s_beep_dur * 1000
                 if self.met_count == 1: #down beat
-                    Beep(1000, int(ms_beep_dur))#TODO: modify duration of beeps
+                    Beep(1000, int(ms_beep_dur))
                 else:                   
                     Beep(700, int(ms_beep_dur))
 
@@ -274,12 +279,17 @@ class Multimodal_Metronome:
                     self.met_count += 1
                 time.sleep(delay - s_beep_dur)
             if not self.midsong and self.showtime:
-                self.log = "Playing 'Life Will Change' at 132 BPM"
-                PlaySound("../music/Life Will Change_132.wav", SND_ASYNC | SND_ALIAS)
+                path = "../music/" + str(TIME_SIG) + "/"    #choose music for the set time signature
+                songs = os.listdir(path)
+                song = songs[randint(0,len(songs)-1)]       #randomly select a song
+                name,source,speed = song[:-4].split("_")
+                # print(song, name, source, speed)
+                self.log = "Playing '" + name + "' from '" + source + "' at " + speed + " BPM"
+                PlaySound(path + song, SND_ASYNC | SND_ALIAS)
                 self.midsong = True
             elif self.midsong and not self.showtime:
                 self.log = "Stopping playback"
-                PlaySound(None, SND_ASYNC)
+                PlaySound(None, SND_ASYNC | SND_ALIAS)
                 self.midsong = False
             else:
                 continue
@@ -415,4 +425,44 @@ if __name__ == '__main__':
 
     controller.remove_listener(listener)
     root.destroy()
+
+    # #Code for generating motion data plots
+    # import matplotlib.pyplot as plt
+
+    # data = [[],[],[],[],[],[],[]]
+    # offset = TEST_DATA[0][-1]
+    # for info in TEST_DATA:
+    #     for i in range(len(info)):
+    #         data[i].append(info[i])
+
+    # t = data[-1]
+    # t = [n - offset for n in t]
+
+    # fig, ax = plt.subplots(1,1)
+    # fig.set_size_inches(8,8)
+    # plt.subplot(1,1,1)
+    # plt.plot(data[0],data[1])
+    # plt.xlabel("X")
+    # plt.ylabel("Y")
+    # plt.title("Hand Position")
+
+
+    # fig2, ax2 = plt.subplots(1,1)
+    # fig2.set_size_inches(16,6)
+    # plt.subplot(1,1,1)
+    # plt.plot(t,data[3])
+    # plt.ylabel("X Speed (mm/sec)")
+    # plt.xlabel("Time (sec)")
+    # plt.title("Horixzontal Hand Velocity")
+
+    # fig3, ax3 = plt.subplots(1,1)
+    # fig3.set_size_inches(16,6)
+    # plt.subplot(1,1,1)
+    # plt.plot(t,data[4])
+    # plt.ylabel("Y Speed (mm/sec)")
+    # plt.xlabel("Time")
+    # plt.title("Vertical Hand Velocity")
+
+    # plt.show()
+
     

@@ -1,38 +1,3 @@
-# import sys
-# sys.path.insert(0,"../lib")
-# import Leap
-
-# class LeapEventListener(Leap.Listener):
-# 	def on_connect(self,controller):
-# 		print "Connected" 
-# 		controller.enable_gesture(Leap.Gesture.TYPE_SWIPE)
-# 		controller.config.set("Gesture.Swipe.MinLength", 200.0)
-# 		controller.config.save()
-
-# 	def on_disconnect(self,controller):
-# 		print "Disconnected"
-
-# 	def onFrame(self,controller):
-# 		frame = controller.frame()
-# 		previous = controller.frame(1)
-# 		hands = frame.hands
-# 		conducting = hands.rightmost
-# 		position = conducting.palm_position
-# 		velocity = conducting.palm_velocity
-# 		print position,velocity
-
-# 		gesture_list = frame.gestures()
-# 		if not gesture_list.is_empty():
-# 			for gesture in gesture_list:
-# 				print "Type: " + str(gesture.type)
-
-
-# if __name__ == '__main__':
-# 	listener = LeapEventListener()
-# 	controller = Leap.Controller()
-# 	controller.add_listener(listener)
-# 	while(1):
-# 		i =0
 ################################################################################
 # Copyright (C) 2012-2013 Leap Motion, Inc. All rights reserved.               #
 # Leap Motion proprietary and confidential. Not for distribution.              #
