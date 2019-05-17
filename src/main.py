@@ -88,7 +88,10 @@ class LeapEventListener(Leap.Listener):
                                 sec_skip = us_skip / 1000000
                                 temp += 60/sec_skip  
                             self.prev_bpm = BPM #update stored bpm for streak check
-                            BPM = int(temp/(beat_refs-1))
+                            offset = 0
+                            if TIME_SIG == 3:
+                                offset = 30
+                            BPM = int(temp/(beat_refs-1))+offset
 
                         #update streaks at the end of a measure
                         if BPM == 0 or abs(BPM - self.prev_bpm) > 5:
