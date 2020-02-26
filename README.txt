@@ -2,8 +2,9 @@
 
 Multimodal Metronome and Conducting Tutor
 
-NOTE: In order to use the application, run the ‘main.py’ file from inside the ‘src’ folder 
+DEMO: https://www.youtube.com/watch?v=ScCDMZktpdw&feature=youtu.be
 
+NOTE: In order to use the application, run the â€˜main.pyâ€™ file from inside the â€˜srcâ€™ folder 
 
 OS: Windows, Language: Python2
 
@@ -13,7 +14,7 @@ Installations:
 
 Package	 | Version | Comments/Installation
 --------------------------------------------------
-Leap SDK | V3.2    | Included in ‘lib’ folder
+Leap SDK | V3.2    | Included in â€˜libâ€™ folder
 --------------------------------------------------
 Pillow   |6.0.0    | Used for displaying images
          |         | pip install pillow
